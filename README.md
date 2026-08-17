@@ -3,11 +3,20 @@
 Run Codex in a Sprite and control it from the Paseo iOS app, while allowing the
 Sprite to suspend automatically after agent work finishes.
 
+## Modes
+
+- [`direct/`](direct/) is the recommended starting point. Paseo is exposed
+  through the Sprite HTTPS URL, and the Paseo connection itself wakes the
+  Sprite. It does not need a separate waker.
+- The controller below is the original relay-based mode. It stops Paseo after
+  an idle grace period and therefore requires an external authenticated wake
+  action.
+
 ## Why the controller exists
 
-A continuously running Sprite service prevents automatic suspension. Running
-Paseo as a normal always-on service would therefore defeat the cost-saving
-goal.
+The relay-based mode keeps Paseo connected outbound and polls agent state.
+Those activities can prevent automatic suspension, so this mode explicitly
+stops Paseo after an idle grace period.
 
 `bin/run-paseo-on-sprite` wraps Paseo with lifecycle control:
 

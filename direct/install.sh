@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly INSTALL_DIR="${DIRECT_INSTALL_DIR:-/home/sprite/bin}"
+readonly PASEO_HOME_DIR="${PASEO_HOME:-/home/sprite/.paseo}"
+readonly PASEO_VERSION="${PASEO_VERSION:-0.4.0}"
+readonly CODEX_VERSION="${CODEX_VERSION:-0.144.3}"
+readonly SERVICE_NAME="${PASEO_SERVICE_NAME:-paseo}"
+readonly DEFER_AUTH="${DIRECT_DEFER_AUTH:-0}"
+
+if [[ ! -S /.sprite/api.sock ]]; then
+    echo "This installer must run inside a Sprite." >&2
+    exit 1
+fi
+
+for command_name in node npm sprite-env curl; do
+    if ! command -v "${command_name}" >/dev/null 2>&1; then
+        echo "Required command not found: ${command_name}" >&2
+        exit 127
+    fi
+done
+
+sprite_url="$(
+    node -e '
+        const { execFileSync } = require("node:child_process");
+        const info = JSON.parse(execFileSync("sprite-env", ["info"], { encoding: "utf8" }));
+        process.stdout.write(info.sprite_url);
+    '
+)"
+
+if [[ -z "${sprite_url}" ]]; then
+    echo "Could not determine this Sprite URL." >&2
+    exit 1
+fi
+
+echo "Installing Paseo ${PASEO_VERSION} and Codex ${CODEX_VERSION}..."
+npm install --global --allow-scripts=node-pty "@getpaseo/cli@${PASEO_VERSION}"
+npm install --global "@openai/codex@${CODEX_VERSION}"
+
+node_path="$(command -v node)"
+npm_prefix="$(npm prefix --global)"
+paseo_path="${npm_prefix}/bin/paseo"
+codex_path="${npm_prefix}/bin/codex"
+
+if [[ ! -x "${paseo_path}" || ! -x "${codex_path}" ]]; then
+    echo "Expected npm executables were not installed under ${npm_prefix}/bin." >&2
+    exit 1
+fi
+
+# Sprite login shells include ~/.local/bin, while npm's active global prefix may
+# live under /.sprite/languages. Keep stable user-facing commands across wakes.
+install -d -m 755 /home/sprite/.local/bin
+ln -sfn "${paseo_path}" /home/sprite/.local/bin/paseo
+ln -sfn "${codex_path}" /home/sprite/.local/bin/codex
+
+install -d -m 755 "${INSTALL_DIR}"
+install -m 755 "${SCRIPT_DIR}/run-paseo-direct" "${INSTALL_DIR}/run-paseo-direct"
+install -m 755 "${SCRIPT_DIR}/configure-paseo.mjs" "${INSTALL_DIR}/configure-paseo.mjs"
+install -d -m 700 "${PASEO_HOME_DIR}"
+
+"${node_path}" "${INSTALL_DIR}/configure-paseo.mjs" \
+    "${PASEO_HOME_DIR}/config.json" \
+    "${sprite_url}"
+
+password_configured=true
+if ! node -e '
+    const fs = require("node:fs");
+    const config = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    process.exit(config.daemon?.auth?.password ? 0 : 1);
+' "${PASEO_HOME_DIR}/config.json"; then
+    password_configured=false
+
+    if [[ "${DEFER_AUTH}" == "1" ]]; then
+        echo "Deferring Paseo password setup; the Sprite URL will remain private."
+    elif [[ ! -t 0 ]]; then
+        echo "Paseo has no password and setup is not interactive." >&2
+        echo "Run 'paseo daemon set-password', then rerun this installer." >&2
+        exit 1
+    else
+        echo
+        echo "Set the password required by the public HTTPS endpoint:"
+        "${node_path}" "${paseo_path}" daemon set-password
+        password_configured=true
+    fi
+
+fi
+
+echo
+echo "Codex installed at ${codex_path}. Authenticate it with 'codex login' if needed."
+
+if sprite-env services get "${SERVICE_NAME}" >/dev/null 2>&1; then
+    echo "Replacing existing Sprite service '${SERVICE_NAME}' while preserving ${PASEO_HOME_DIR}."
+    sprite-env services stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
+    sprite-env services delete "${SERVICE_NAME}" >/dev/null
+fi
+
+sprite-env services create "${SERVICE_NAME}" \
+    --cmd "${INSTALL_DIR}/run-paseo-direct" \
+    --env "PASEO_NODE_BIN=${node_path},PASEO_CLI_BIN=${paseo_path},PASEO_HOME=${PASEO_HOME_DIR}" \
+    --dir /home/sprite \
+    --http-port 8080 \
+    --duration 10s
+
+if [[ "${password_configured}" != true ]]; then
+    echo "Sprite URL left private until Paseo password setup is complete."
+elif timeout 10s sprite config update --url-auth public </dev/null >/dev/null 2>&1; then
+    echo "Sprite URL authentication set to public; Paseo password authentication remains required."
+else
+    echo "Could not update URL authentication from inside the Sprite."
+    echo "Run this from an authenticated local shell:"
+    echo "  sprite config update --url-auth public -s <sprite-name>"
+fi
+
+echo
+echo "Direct Paseo endpoint: ${sprite_url}"
+echo "Paseo iOS: add a direct host using $(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "${sprite_url}"), port 443, SSL enabled."
+echo "Health check: curl --fail ${sprite_url}/api/health"
+
+if [[ "${password_configured}" != true ]]; then
+    echo
+    echo "Finish authentication inside the Sprite:"
+    echo "  paseo daemon set-password"
+    echo "  codex login"
+    echo "  sprite-env services restart ${SERVICE_NAME}"
+    echo "Then make the endpoint reachable from your local machine:"
+    echo "  sprite config update --url-auth public -s <sprite-name>"
+fi
