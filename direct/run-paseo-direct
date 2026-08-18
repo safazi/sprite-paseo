@@ -1,9 +1,64 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -u
 
 readonly NODE_BIN="${PASEO_NODE_BIN:-$(command -v node || true)}"
 readonly PASEO_CLI="${PASEO_CLI_BIN:-$(command -v paseo 2>/dev/null || true)}"
+readonly PASEO_HOME_DIR="${PASEO_HOME:-/home/sprite/.paseo}"
+readonly ACTIVE_AGENT_HELPER="${PASEO_ACTIVE_AGENT_HELPER:-/home/sprite/bin/count-active-agents.mjs}"
+readonly SPRITE_SOCKET="/.sprite/api.sock"
+readonly TASK_NAME="${PASEO_TASK_NAME:-paseo-active-agents}"
+readonly TASK_URL="http://sprite/v1/tasks/${TASK_NAME}"
+readonly TASK_EXPIRE="${PASEO_TASK_EXPIRE:-5m}"
+readonly POLL_SECONDS="${PASEO_POLL_SECONDS:-5}"
+readonly REFRESH_SECONDS="${PASEO_TASK_REFRESH_SECONDS:-60}"
+
+daemon_pid=""
+task_present=false
+last_refresh=0
+
+put_task() {
+    curl \
+        --silent \
+        --show-error \
+        --fail \
+        --unix-socket "${SPRITE_SOCKET}" \
+        --request PUT \
+        --header "Content-Type: application/json" \
+        --data "{\"expire\":\"${TASK_EXPIRE}\"}" \
+        "${TASK_URL}" >/dev/null
+}
+
+delete_task() {
+    curl \
+        --silent \
+        --unix-socket "${SPRITE_SOCKET}" \
+        --request DELETE \
+        "${TASK_URL}" >/dev/null 2>&1 || true
+    task_present=false
+    last_refresh=0
+}
+
+stop_daemon() {
+    if [[ -n "${daemon_pid}" ]]; then
+        kill -TERM "${daemon_pid}" 2>/dev/null || true
+        wait "${daemon_pid}" 2>/dev/null || true
+    fi
+}
+
+cleanup() {
+    local status=$?
+
+    trap - EXIT INT TERM HUP
+    delete_task
+    stop_daemon
+    exit "${status}"
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 0' TERM
+trap 'exit 129' HUP
 
 if [[ ! -x "${NODE_BIN}" ]]; then
     echo "Node executable not found at ${NODE_BIN}" >&2
@@ -15,7 +70,46 @@ if [[ ! -f "${PASEO_CLI}" ]]; then
     exit 127
 fi
 
-exec "${NODE_BIN}" "${PASEO_CLI}" start \
+if [[ ! -f "${ACTIVE_AGENT_HELPER}" ]]; then
+    echo "Active-agent helper not found at ${ACTIVE_AGENT_HELPER}" >&2
+    exit 127
+fi
+
+# Clear a stale hold from an unclean prior service exit. Active work below
+# recreates it within one poll interval.
+delete_task
+
+"${NODE_BIN}" "${PASEO_CLI}" start \
     --foreground \
     --listen 0.0.0.0:8080 \
-    --web-ui
+    --web-ui &
+daemon_pid=$!
+
+while kill -0 "${daemon_pid}" 2>/dev/null; do
+    if active_count=$("${NODE_BIN}" "${ACTIVE_AGENT_HELPER}" "${PASEO_HOME_DIR}/agents"); then
+        now=$(date +%s)
+
+        if (( active_count > 0 )); then
+            if [[ "${task_present}" != true ]] || (( now - last_refresh >= REFRESH_SECONDS )); then
+                if put_task; then
+                    if [[ "${task_present}" != true ]]; then
+                        echo "Paseo agent active; holding Sprite task '${TASK_NAME}'."
+                    fi
+                    task_present=true
+                    last_refresh="${now}"
+                else
+                    echo "Warning: could not refresh Sprite task '${TASK_NAME}'." >&2
+                fi
+            fi
+        elif [[ "${task_present}" == true ]]; then
+            echo "Paseo handed control back; releasing Sprite task '${TASK_NAME}'."
+            delete_task
+        fi
+    else
+        echo "Warning: could not inspect Paseo agent state; preserving the current task until expiry." >&2
+    fi
+
+    sleep "${POLL_SECONDS}"
+done
+
+wait "${daemon_pid}"

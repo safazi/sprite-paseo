@@ -57,6 +57,7 @@ ln -sfn "${codex_path}" /home/sprite/.local/bin/codex
 
 install -d -m 755 "${INSTALL_DIR}"
 install -m 755 "${SCRIPT_DIR}/run-paseo-direct" "${INSTALL_DIR}/run-paseo-direct"
+install -m 755 "${SCRIPT_DIR}/count-active-agents.mjs" "${INSTALL_DIR}/count-active-agents.mjs"
 install -m 755 "${SCRIPT_DIR}/configure-paseo.mjs" "${INSTALL_DIR}/configure-paseo.mjs"
 install -d -m 700 "${PASEO_HOME_DIR}"
 
@@ -98,7 +99,7 @@ fi
 
 sprite-env services create "${SERVICE_NAME}" \
     --cmd "${INSTALL_DIR}/run-paseo-direct" \
-    --env "PASEO_NODE_BIN=${node_path},PASEO_CLI_BIN=${paseo_path},PASEO_HOME=${PASEO_HOME_DIR}" \
+    --env "PASEO_NODE_BIN=${node_path},PASEO_CLI_BIN=${paseo_path},PASEO_HOME=${PASEO_HOME_DIR},PASEO_ACTIVE_AGENT_HELPER=${INSTALL_DIR}/count-active-agents.mjs" \
     --dir /home/sprite \
     --http-port 8080 \
     --duration 10s

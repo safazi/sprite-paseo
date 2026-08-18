@@ -23,7 +23,8 @@ The installer:
 - disables the Paseo relay;
 - enables the bundled web UI;
 - binds Paseo to `0.0.0.0:8080`;
-- registers Paseo as the Sprite HTTP Service on port 8080; and
+- registers Paseo as the Sprite HTTP Service on port 8080;
+- holds a short-expiry Sprite task while an agent is actively working; and
 - makes the Sprite URL public so native Paseo clients can reach it.
 
 The Sprite URL is public only at the transport layer. Paseo's API and WebSocket
@@ -77,25 +78,33 @@ the persistent filesystem.
 ```bash
 curl --fail https://<sprite-host>.sprites.app/api/health
 sprite-env services get paseo
+sprite-env curl http://sprite/v1/tasks
 ```
 
 The first request may take a couple seconds after a cold wake.
 
 ## Idle behavior
 
-This first direct mode intentionally contains no poller and never manually
-stops the Paseo service. Sprites can suspend registered Services and restart
-them on demand.
+The service polls Paseo's persisted agent lifecycle every five seconds. If any
+agent is `initializing` or `running` and does not require user attention, it
+upserts the `paseo-active-agents` Sprite task with a five-minute expiry and
+refreshes it every minute. The task is deleted as soon as all agents finish,
+fail, close, or hand control back for input.
 
-An attached Paseo client keeps a WebSocket open and therefore keeps the Sprite
-active. Close or background the client when finished. If every client
-disconnects during a turn, long silent work is not yet protected from a Sprite
-pause; that needs a lifecycle-to-Sprite-Tasks integration. Do not add an
-unconditional heartbeat because it would prevent automatic suspension.
+This keeps silent work such as sleeps, long shell commands, and API calls alive
+even when every Paseo client disconnects. The short expiry is deliberate: if
+the wrapper crashes, the hold disappears without leaving the Sprite running
+forever. The Paseo HTTP Service itself remains registered, so a later inbound
+connection wakes the Sprite again.
 
-The next lifecycle layer should create a short-expiry Sprite Task only while
-Paseo reports an agent as `initializing` or `running`, refresh it while work is
-active, and delete it for `idle`, `error`, or `closed`.
+Tune the lifecycle bridge through the service environment if necessary:
+
+| Variable | Default | Meaning |
+| --- | ---: | --- |
+| `PASEO_POLL_SECONDS` | `5` | Agent-state poll interval |
+| `PASEO_TASK_REFRESH_SECONDS` | `60` | Task heartbeat interval |
+| `PASEO_TASK_EXPIRE` | `5m` | Safety expiry after the last heartbeat |
+| `PASEO_TASK_NAME` | `paseo-active-agents` | Sprite task name |
 
 ## Security
 
