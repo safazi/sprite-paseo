@@ -12,7 +12,7 @@ Configure Paseo as the Sprite HTTP service on port 8080. Use the bundled install
 1. Confirm the current environment is a Sprite by checking for `/.sprite/api.sock`.
 2. Inspect `sprite-env services list` and `~/.paseo/config.json` when present. Tell the user if an existing `paseo` service will be replaced; the installer preserves Paseo state and authentication under `~/.paseo`.
 3. Never print the Paseo password, Codex credentials, environment variables, or the contents of private agent-state files.
-4. Use a strong, unique Paseo password. The required host-side publish step makes the Sprite URL public at the transport layer; Paseo still authenticates its API and WebSocket. Static UI assets and `/api/health` remain unauthenticated.
+4. Use a strong, unique Paseo password. The required host-side publish step makes the Sprite URL public at the transport layer; Paseo still authenticates its API and WebSocket. The bundled web UI is disabled; `/api/health` remains unauthenticated.
 
 ## Install
 
@@ -28,7 +28,7 @@ The installer performs these operations:
 - merge direct-mode settings without deleting existing Paseo state or authentication;
 - make Codex full access the default Paseo mode without requiring an agent profile;
 - enable Codex's interactive user-question tool globally;
-- disable the Paseo relay and enable its web UI;
+- disable the Paseo relay and bundled web UI;
 - register Paseo as the Sprite HTTP service on `0.0.0.0:8080`;
 - keep the Sprite alive with a short-expiry task only while an agent is working; and
 - print the host-side command required to make the Sprite URL public.
@@ -69,6 +69,7 @@ Get the Sprite URL from `sprite-env info`. Verify the service and lifecycle inte
 
 ```bash
 curl --fail https://<sprite-host>.sprites.app/api/health
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/)" = 404
 sprite-env services get paseo
 sprite-env curl http://sprite/v1/tasks
 ```

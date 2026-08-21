@@ -24,7 +24,7 @@ The root installer delegates to `direct/scripts/install.sh`. It:
 - merges the direct-mode Paseo configuration;
 - configures Codex full access as Paseo's default mode without an agent profile;
 - keeps Codex interactive user questions enabled;
-- disables the Paseo relay and enables the web UI;
+- disables the Paseo relay and bundled web UI;
 - binds Paseo to `0.0.0.0:8080`;
 - registers Paseo as the Sprite HTTP service;
 - keeps the Sprite awake only while an agent is actively working; and
@@ -123,8 +123,8 @@ The service environment supports:
 ## Security
 
 The Sprite URL is public at the transport layer so native Paseo clients can
-connect. Paseo's API and WebSocket remain password-protected. Static web UI
-assets and `/api/health` are intentionally unauthenticated.
+connect. Paseo's API and WebSocket remain password-protected. The bundled web
+UI is disabled; `/api/health` remains intentionally unauthenticated.
 
 - Use a strong, unique Paseo password.
 - Keep `~/.paseo` private; it contains authentication and agent state.

@@ -38,7 +38,7 @@ if (Array.isArray(config.daemon.agentProfiles)) {
     if (config.daemon.agentProfiles.length === 0) delete config.daemon.agentProfiles;
 }
 config.features ??= {};
-config.features.webUi = { ...(config.features.webUi ?? {}), enabled: true };
+config.features.webUi = { ...(config.features.webUi ?? {}), enabled: false };
 config.features.dictation ??= { enabled: false };
 config.features.voiceMode ??= { enabled: false };
 
