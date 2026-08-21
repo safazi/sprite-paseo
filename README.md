@@ -1,7 +1,7 @@
 # sprite-paseo
 
-Run Codex in a Sprite and control it from Paseo without a relay or separate wake
-service. Paseo runs as the Sprite HTTP service, so opening the Sprite HTTPS URL
+Run Codex in a Sprite and control it directly from Paseo without enabling the
+relay. Paseo runs as the Sprite HTTP service, so opening the Sprite HTTPS URL
 wakes the Sprite automatically.
 
 The repository is also a reusable Codex skill. Its instructions and bundled
