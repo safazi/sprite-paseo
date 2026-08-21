@@ -5,6 +5,7 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly INSTALL_DIR="${DIRECT_INSTALL_DIR:-/home/sprite/bin}"
 readonly PASEO_HOME_DIR="${PASEO_HOME:-/home/sprite/.paseo}"
+readonly CODEX_HOME_DIR="${CODEX_HOME:-/home/sprite/.codex}"
 readonly PASEO_VERSION="${PASEO_VERSION:-0.4.0}"
 readonly CODEX_VERSION="${CODEX_VERSION:-0.144.3}"
 readonly SERVICE_NAME="${PASEO_SERVICE_NAME:-paseo}"
@@ -43,8 +44,9 @@ node_path="$(command -v node)"
 npm_prefix="$(npm prefix --global)"
 paseo_path="${npm_prefix}/bin/paseo"
 codex_path="${npm_prefix}/bin/codex"
+paseo_provider_manifest="${npm_prefix}/lib/node_modules/@getpaseo/cli/node_modules/@getpaseo/protocol/dist/provider-manifest.js"
 
-if [[ ! -x "${paseo_path}" || ! -x "${codex_path}" ]]; then
+if [[ ! -x "${paseo_path}" || ! -x "${codex_path}" || ! -f "${paseo_provider_manifest}" ]]; then
     echo "Expected npm executables were not installed under ${npm_prefix}/bin." >&2
     exit 1
 fi
@@ -59,11 +61,16 @@ install -d -m 755 "${INSTALL_DIR}"
 install -m 755 "${SCRIPT_DIR}/run-paseo-direct" "${INSTALL_DIR}/run-paseo-direct"
 install -m 755 "${SCRIPT_DIR}/count-active-agents.mjs" "${INSTALL_DIR}/count-active-agents.mjs"
 install -m 755 "${SCRIPT_DIR}/configure-paseo.mjs" "${INSTALL_DIR}/configure-paseo.mjs"
+install -m 755 "${SCRIPT_DIR}/configure-codex.mjs" "${INSTALL_DIR}/configure-codex.mjs"
 install -d -m 700 "${PASEO_HOME_DIR}"
 
 "${node_path}" "${INSTALL_DIR}/configure-paseo.mjs" \
     "${PASEO_HOME_DIR}/config.json" \
     "${sprite_url}"
+
+"${node_path}" "${INSTALL_DIR}/configure-codex.mjs" \
+    "${CODEX_HOME_DIR}/config.toml" \
+    "${paseo_provider_manifest}"
 
 password_configured=true
 if ! node -e '

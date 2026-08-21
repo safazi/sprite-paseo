@@ -31,6 +31,12 @@ config.daemon.cors.allowedOrigins = [
     ...new Set([...asArray(config.daemon.cors.allowedOrigins), origin, "https://app.paseo.sh"]),
 ];
 config.daemon.relay = { ...(config.daemon.relay ?? {}), enabled: false };
+if (Array.isArray(config.daemon.agentProfiles)) {
+    config.daemon.agentProfiles = config.daemon.agentProfiles.filter(
+        profile => profile?.id !== "codex-full-access-interactive",
+    );
+    if (config.daemon.agentProfiles.length === 0) delete config.daemon.agentProfiles;
+}
 config.features ??= {};
 config.features.webUi = { ...(config.features.webUi ?? {}), enabled: true };
 config.features.dictation ??= { enabled: false };
