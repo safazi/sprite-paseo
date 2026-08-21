@@ -1,0 +1,4 @@
+interface:
+  display_name: "Direct Paseo Sprite"
+  short_description: "Set up direct Paseo access on a Sprite"
+  default_prompt: "Use $direct to configure this Sprite for direct Paseo access."

@@ -5,7 +5,7 @@ Sprite to suspend automatically after agent work finishes.
 
 ## Modes
 
-- [`direct/`](direct/) is the recommended starting point. Paseo is exposed
+- [`direct/`](direct/SKILL.md) is the recommended Codex skill. Paseo is exposed
   through the Sprite HTTPS URL, and the Paseo connection itself wakes the
   Sprite. It does not need a separate waker.
 - The controller below is the original relay-based mode. It stops Paseo after
