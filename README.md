@@ -1,37 +1,15 @@
 # sprite-paseo
 
-Run Codex in a Sprite and control it from the Paseo iOS app, while allowing the
-Sprite to suspend automatically after agent work finishes.
+Run Codex in a Sprite and control it from Paseo without a relay or separate wake
+service. Paseo runs as the Sprite HTTP service, so opening the Sprite HTTPS URL
+wakes the Sprite automatically.
 
-## Modes
+The repository is also a reusable Codex skill. Its instructions and bundled
+installer live in [`direct/`](direct/SKILL.md).
 
-- [`direct/`](direct/SKILL.md) is the recommended Codex skill. Paseo is exposed
-  through the Sprite HTTPS URL, and the Paseo connection itself wakes the
-  Sprite. It does not need a separate waker.
-- The controller below is the original relay-based mode. It stops Paseo after
-  an idle grace period and therefore requires an external authenticated wake
-  action.
+## Install on a Sprite
 
-## Why the controller exists
-
-The relay-based mode keeps Paseo connected outbound and polls agent state.
-Those activities can prevent automatic suspension, so this mode explicitly
-stops Paseo after an idle grace period.
-
-`bin/run-paseo-on-sprite` wraps Paseo with lifecycle control:
-
-- Paseo listens only on `127.0.0.1:6767` and connects outbound to its relay.
-- While any Paseo agent is active, the controller refreshes a two-minute
-  Sprite task named `paseo-active-agents`.
-- When all agents become idle, the task is deleted.
-- Paseo stays online for a five-minute follow-up grace period.
-- The controller then stops its own Sprite service, allowing suspension.
-- An external wake action starts the registered `paseo` service again.
-
-The startup grace period is ten minutes, giving the phone time to reconnect and
-start work after a wake.
-
-## Install on a fresh Sprite
+Clone the repository inside the target Sprite and run the direct installer:
 
 ```bash
 git clone https://github.com/safazi/sprite-paseo.git
@@ -39,95 +17,110 @@ cd sprite-paseo
 ./install.sh
 ```
 
-The installer:
+The root installer delegates to `direct/scripts/install.sh`. It:
 
-- installs `@getpaseo/cli`;
-- explicitly allows the required `node-pty` native install script;
-- installs the controller in `/home/sprite/bin`;
-- creates a private, loopback-only Paseo configuration if none exists;
-- disables optional voice models by default;
-- registers and starts the Sprite service.
+- installs the tested Paseo and Codex CLI versions;
+- preserves existing Paseo state and authentication;
+- merges the direct-mode Paseo configuration;
+- disables the Paseo relay and enables the web UI;
+- binds Paseo to `0.0.0.0:8080`;
+- registers Paseo as the Sprite HTTP service;
+- keeps the Sprite awake only while an agent is actively working; and
+- makes the Sprite URL public after a Paseo password is configured.
 
-It refuses to replace an existing `paseo` service or overwrite an existing
-Paseo configuration.
+The installer replaces an existing Sprite service named `paseo`, while
+preserving `~/.paseo`.
 
-## Pair the phone
-
-```bash
-paseo daemon pair
-```
-
-Scan the QR code or paste the generated link into Paseo. Treat that link as an
-access credential.
-
-No public Sprite HTTP endpoint is created. Never commit `~/.paseo`; it contains
-the daemon identity, pairing state, push tokens, and agent records.
-
-## Wake from a phone
-
-Once idle shutdown occurs, Paseo will show the host offline. A relay message
-cannot wake a cold Sprite by itself.
-
-The external wake action must securely perform the equivalent of:
+Override the tested versions when needed:
 
 ```bash
-sprite-env services start paseo
+PASEO_VERSION=0.4.0 CODEX_VERSION=0.144.3 ./install.sh
 ```
 
-This repository is designed to pair with `safazi/wake-up-call`. The wake
-endpoint must be authenticated; do not expose an arbitrary or unauthenticated
-command endpoint.
+## Use as a Codex skill
+
+Copy or link `direct/` into a Codex skills directory under the name `direct`,
+then restart Codex so it discovers the skill. Invoke it with `$direct` when
+setting up, verifying, or repairing a Paseo Sprite.
+
+A Codex agent can also load [`direct/SKILL.md`](direct/SKILL.md) directly from
+a clone of this repository.
+
+## Deferred authentication
+
+For unattended provisioning, defer the interactive Paseo and Codex logins and
+leave the Sprite URL private:
+
+```bash
+DIRECT_DEFER_AUTH=1 ./install.sh
+```
+
+Finish setup from an interactive Sprite console:
+
+```bash
+paseo daemon set-password
+codex login
+sprite-env services restart paseo
+```
+
+Then make the endpoint reachable from an authenticated local shell:
+
+```bash
+sprite config update --url-auth public -s <sprite-name>
+```
+
+## Connect Paseo
+
+Get the Sprite endpoint:
+
+```bash
+sprite-env info
+```
+
+In Paseo, add a direct host using the Sprite hostname, port `443`, and SSL.
+Use the Paseo password configured during installation.
+
+Opening this connection wakes the Sprite. A warm wake resumes Paseo in memory;
+a cold wake restarts the registered service from the persistent filesystem.
 
 ## Verify
 
-During an active turn:
-
 ```bash
-curl --silent --unix-socket /.sprite/api.sock http://sprite/v1/tasks
-```
-
-should include `paseo-active-agents`. Within one poll interval after all agents
-become idle, the task should disappear.
-
-Check service state with:
-
-```bash
+curl --fail https://<sprite-host>.sprites.app/api/health
 sprite-env services get paseo
+sprite-env curl http://sprite/v1/tasks
 ```
 
-Logs are written to:
+The first HTTPS request may take a few seconds after a cold wake. Service logs
+are available at `/.sprite/logs/services/paseo.log`.
 
-```text
-/.sprite/logs/services/paseo.log
-```
+## Lifecycle behavior
 
-## Configuration
+The service checks Paseo's persisted agent state every five seconds. While an
+agent is `initializing` or `running` and does not require user attention, it
+refreshes a short-expiry Sprite task named `paseo-active-agents`. It deletes
+the task when work completes or control returns to the user.
 
-The service accepts:
+This keeps unattended work alive when Paseo clients disconnect. The five-minute
+task expiry prevents a crashed wrapper from keeping the Sprite awake forever.
+The registered HTTP service remains available for later wake-on-request.
+
+The service environment supports:
 
 | Variable | Default | Meaning |
 | --- | ---: | --- |
-| `PASEO_STARTUP_GRACE_SECONDS` | `600` | Idle time allowed after wake |
-| `PASEO_IDLE_GRACE_SECONDS` | `300` | Follow-up time after an active turn |
-| `PASEO_POLL_SECONDS` | `15` | Agent-status polling interval |
-| `PASEO_NODE_BIN` | discovered | Absolute Node executable |
-| `PASEO_CLI_BIN` | discovered | Absolute Paseo CLI entry point |
+| `PASEO_POLL_SECONDS` | `5` | Agent-state poll interval |
+| `PASEO_TASK_REFRESH_SECONDS` | `60` | Task heartbeat interval |
+| `PASEO_TASK_EXPIRE` | `5m` | Safety expiry after the last heartbeat |
+| `PASEO_TASK_NAME` | `paseo-active-agents` | Sprite task name |
 
-The controller treats unknown agent states as active. Known terminal states are
-`idle`, `archived`, `error`, `failed`, and `stopped`.
+## Security
 
-## Tested
+The Sprite URL is public at the transport layer so native Paseo clients can
+connect. Paseo's API and WebSocket remain password-protected. Static web UI
+assets and `/api/health` are intentionally unauthenticated.
 
-Tested in a Sprite with:
-
-- Paseo CLI `0.2.3`
-- Codex CLI `0.144.3`
-- Node.js `24.18.0`
-
-The lifecycle test confirmed:
-
-1. an active Codex turn creates the Sprite task;
-2. the task disappears after Codex becomes idle;
-3. the Paseo service stops after the configured grace period;
-4. the stopped service can be started again and reconnects using the existing
-   phone pairing.
+- Use a strong, unique Paseo password.
+- Keep `~/.paseo` private; it contains authentication and agent state.
+- Do not enable the Paseo relay in direct mode.
+- Do not expose another service on the Sprite HTTP port.
