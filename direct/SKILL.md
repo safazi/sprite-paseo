@@ -12,7 +12,7 @@ Configure Paseo as the Sprite HTTP service on port 8080. Use the bundled install
 1. Confirm the current environment is a Sprite by checking for `/.sprite/api.sock`.
 2. Inspect `sprite-env services list` and `~/.paseo/config.json` when present. Tell the user if an existing `paseo` service will be replaced; the installer preserves Paseo state and authentication under `~/.paseo`.
 3. Never print the Paseo password, Codex credentials, environment variables, or the contents of private agent-state files.
-4. Use a strong, unique Paseo password. Direct mode makes the Sprite URL public at the transport layer after password setup; Paseo still authenticates its API and WebSocket. Static UI assets and `/api/health` remain unauthenticated.
+4. Use a strong, unique Paseo password. The required host-side publish step makes the Sprite URL public at the transport layer; Paseo still authenticates its API and WebSocket. Static UI assets and `/api/health` remain unauthenticated.
 
 ## Install
 
@@ -31,7 +31,7 @@ The installer performs these operations:
 - disable the Paseo relay and enable its web UI;
 - register Paseo as the Sprite HTTP service on `0.0.0.0:8080`;
 - keep the Sprite alive with a short-expiry task only while an agent is working; and
-- make the Sprite URL public after a Paseo password is configured.
+- print the host-side command required to make the Sprite URL public.
 
 When the session is non-interactive or the user wants to finish authentication later, run:
 
@@ -51,13 +51,17 @@ codex login
 sprite-env services restart paseo
 ```
 
-Then ask the user to run this from an authenticated local shell:
+## Publish the Sprite URL from the host
+
+The installer cannot make the URL public from inside the Sprite. The command below **must run outside the Sprite**, in a terminal on the user's computer where the `sprite` CLI is already authenticated to the organization that owns the target Sprite:
 
 ```bash
 sprite config update --url-auth public -s <sprite-name>
 ```
 
-Do not claim the endpoint is externally reachable until that command succeeds.
+Never run this command through `sprite exec`, in a Sprite console, or from the installer. The in-Sprite CLI does not have the authenticated host credentials required to change URL access. Ask the user to run it themselves when the current environment is the Sprite.
+
+This host-side step is required after both interactive and deferred installations. Do not claim the endpoint is externally reachable until the command succeeds from an authenticated host terminal.
 
 ## Verify
 

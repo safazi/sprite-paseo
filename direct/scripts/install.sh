@@ -113,18 +113,12 @@ sprite-env services create "${SERVICE_NAME}" \
 
 if [[ "${password_configured}" != true ]]; then
     echo "Sprite URL left private until Paseo password setup is complete."
-elif timeout 10s sprite config update --url-auth public </dev/null >/dev/null 2>&1; then
-    echo "Sprite URL authentication set to public; Paseo password authentication remains required."
-else
-    echo "Could not update URL authentication from inside the Sprite."
-    echo "Run this from an authenticated local shell:"
-    echo "  sprite config update --url-auth public -s <sprite-name>"
 fi
 
 echo
-echo "Direct Paseo endpoint: ${sprite_url}"
+echo "Direct Paseo endpoint after the host-side publish step: ${sprite_url}"
 echo "Paseo iOS: add a direct host using $(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "${sprite_url}"), port 443, SSL enabled."
-echo "Health check: curl --fail ${sprite_url}/api/health"
+echo "Health check after publishing: curl --fail ${sprite_url}/api/health"
 
 if [[ "${password_configured}" != true ]]; then
     echo
@@ -132,6 +126,9 @@ if [[ "${password_configured}" != true ]]; then
     echo "  paseo daemon set-password"
     echo "  codex login"
     echo "  sprite-env services restart ${SERVICE_NAME}"
-    echo "Then make the endpoint reachable from your local machine:"
-    echo "  sprite config update --url-auth public -s <sprite-name>"
 fi
+
+echo
+echo "IMPORTANT: Run this OUTSIDE the Sprite, in a terminal where the Sprite CLI is authenticated:"
+echo "  sprite config update --url-auth public -s <sprite-name>"
+echo "The in-Sprite CLI cannot publish its own URL because it does not have your host CLI authentication."

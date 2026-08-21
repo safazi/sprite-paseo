@@ -28,7 +28,7 @@ The root installer delegates to `direct/scripts/install.sh`. It:
 - binds Paseo to `0.0.0.0:8080`;
 - registers Paseo as the Sprite HTTP service;
 - keeps the Sprite awake only while an agent is actively working; and
-- makes the Sprite URL public after a Paseo password is configured.
+- prints the host-side command required to make the Sprite URL public.
 
 The installer replaces an existing Sprite service named `paseo`, while
 preserving `~/.paseo`.
@@ -65,11 +65,15 @@ codex login
 sprite-env services restart paseo
 ```
 
-Then make the endpoint reachable from an authenticated local shell:
+## Publish the Sprite URL
+
+The installer cannot publish the URL from inside the Sprite. Run this **outside the Sprite**, in a terminal on your computer where the `sprite` CLI is authenticated to the organization that owns the Sprite:
 
 ```bash
 sprite config update --url-auth public -s <sprite-name>
 ```
+
+Do not run this through `sprite exec` or from a Sprite console. This host-side step is required after both interactive and deferred installations.
 
 ## Connect Paseo
 
