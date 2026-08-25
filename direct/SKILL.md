@@ -13,6 +13,7 @@ Configure Paseo as the Sprite HTTP service on port 8080. Use the bundled install
 2. Inspect `sprite-env services list` and `~/.paseo/config.json` when present. Tell the user if an existing `paseo` service will be replaced; the installer preserves Paseo state and authentication under `~/.paseo`.
 3. Never print the Paseo password, Codex credentials, environment variables, or the contents of private agent-state files.
 4. Use a strong, unique Paseo password. The required host-side publish step makes the Sprite URL public at the transport layer; Paseo still authenticates its API and WebSocket. The bundled web UI is disabled; `/api/health` remains unauthenticated.
+5. The user owns the interactive `paseo daemon set-password` flow. Never run it for them, operate its prompt, ask for the password, or retrieve the resulting password from configuration.
 
 ## Install
 
@@ -33,23 +34,19 @@ The installer performs these operations:
 - keep the Sprite alive with a short-expiry task only while an agent is working; and
 - print the host-side command required to make the Sprite URL public.
 
-When the session is non-interactive or the user wants to finish authentication later, run:
-
-```bash
-DIRECT_DEFER_AUTH=1 <skill-directory>/scripts/install.sh
-```
-
 To override the tested versions only when the user requests specific versions, set `PASEO_VERSION` and `CODEX_VERSION` for the installer invocation.
 
-## Finish deferred authentication
+## User password checkpoint
 
-Run these commands from an interactive Sprite console:
+If the installer reports that no Paseo password is configured, keep the Sprite URL private and tell the user to open an interactive Sprite terminal and run:
 
 ```bash
 paseo daemon set-password
-codex login
-sprite-env services restart paseo
 ```
+
+Then stop and wait for the user to confirm completion. A reply such as `done` is sufficient; do not ask them to disclose the password. The agent must not execute this command through `sprite exec` or an automated console session.
+
+After the user confirms, restart the managed service with `sprite-env services restart paseo`, then continue to the host-side publish step. Treat the user's confirmation as the checkpoint; do not inspect the stored password.
 
 ## Publish the Sprite URL from the host
 
@@ -59,9 +56,9 @@ The installer cannot make the URL public from inside the Sprite. The command bel
 sprite config update --url-auth public -s <sprite-name>
 ```
 
-Never run this command through `sprite exec`, in a Sprite console, or from the installer. The in-Sprite CLI does not have the authenticated host credentials required to change URL access. Ask the user to run it themselves when the current environment is the Sprite.
+Never run this command through `sprite exec`, in a Sprite console, or from the installer. The in-Sprite CLI does not have the authenticated host credentials required to change URL access. After the user confirms the password checkpoint, the agent may run this command from the authenticated host terminal.
 
-This host-side step is required after both interactive and deferred installations. Do not claim the endpoint is externally reachable until the command succeeds from an authenticated host terminal.
+Do not claim the endpoint is externally reachable until the command succeeds from an authenticated host terminal.
 
 ## Verify
 
@@ -70,11 +67,12 @@ Get the Sprite URL from `sprite-env info`. Verify the service and lifecycle inte
 ```bash
 curl --fail https://<sprite-host>.sprites.app/api/health
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/)" = 404
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/api/config)" = 401
 sprite-env services get paseo
 sprite-env curl http://sprite/v1/tasks
 ```
 
-Allow a few seconds for the first HTTPS request after a cold wake. Report the hostname for a Paseo direct host using port `443` with SSL enabled, but never report or retrieve its password.
+Allow a few seconds for the first HTTPS request after a cold wake. The `401` proves that the public transport endpoint still enforces Paseo authentication. If a protected route does not return `401`, immediately restore Sprite authentication from the host with `sprite config update --url-auth sprite -s <sprite-name>` and report the failed verification. Report the hostname for a Paseo direct host using port `443` with SSL enabled, but never report or retrieve its password.
 
 If verification fails, inspect the Paseo service logs and configuration metadata without exposing secrets. Restart an existing service with `sprite-env services restart paseo`; do not launch Paseo as an unmanaged background process.
 

@@ -48,22 +48,21 @@ setting up, verifying, or repairing a Paseo Sprite.
 A Codex agent can also load [`direct/SKILL.md`](direct/SKILL.md) directly from
 a clone of this repository.
 
-## Deferred authentication
+## User authentication checkpoint
 
-For unattended provisioning, defer the interactive Paseo and Codex logins and
-leave the Sprite URL private:
-
-```bash
-DIRECT_DEFER_AUTH=1 ./install.sh
-```
-
-Finish setup from an interactive Sprite console:
+The installer never performs the interactive Paseo password flow. If no password
+is configured, leave the Sprite URL private. The user must open an interactive
+Sprite terminal and run:
 
 ```bash
 paseo daemon set-password
-codex login
-sprite-env services restart paseo
 ```
+
+The user should then tell the installing agent that the password is set; `done`
+is sufficient. The agent can then restart the managed service, publish the URL
+from the host, and verify that protected endpoints reject unauthenticated
+requests. Run `codex login` yourself as well when Codex is not already
+authenticated.
 
 ## Publish the Sprite URL
 
@@ -73,7 +72,8 @@ The installer cannot publish the URL from inside the Sprite. Run this **outside 
 sprite config update --url-auth public -s <sprite-name>
 ```
 
-Do not run this through `sprite exec` or from a Sprite console. This host-side step is required after both interactive and deferred installations.
+Do not run this through `sprite exec` or from a Sprite console. Do not publish
+until the user has completed the password checkpoint.
 
 ## Connect Paseo
 
@@ -93,6 +93,8 @@ a cold wake restarts the registered service from the persistent filesystem.
 
 ```bash
 curl --fail https://<sprite-host>.sprites.app/api/health
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/)" = 404
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/api/config)" = 401
 sprite-env services get paseo
 sprite-env curl http://sprite/v1/tasks
 ```

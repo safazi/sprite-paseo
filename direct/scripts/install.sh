@@ -9,7 +9,6 @@ readonly CODEX_HOME_DIR="${CODEX_HOME:-/home/sprite/.codex}"
 readonly PASEO_VERSION="${PASEO_VERSION:-0.4.0}"
 readonly CODEX_VERSION="${CODEX_VERSION:-0.144.3}"
 readonly SERVICE_NAME="${PASEO_SERVICE_NAME:-paseo}"
-readonly DEFER_AUTH="${DIRECT_DEFER_AUTH:-0}"
 
 if [[ ! -S /.sprite/api.sock ]]; then
     echo "This installer must run inside a Sprite." >&2
@@ -79,20 +78,7 @@ if ! node -e '
     process.exit(config.daemon?.auth?.password ? 0 : 1);
 ' "${PASEO_HOME_DIR}/config.json"; then
     password_configured=false
-
-    if [[ "${DEFER_AUTH}" == "1" ]]; then
-        echo "Deferring Paseo password setup; the Sprite URL will remain private."
-    elif [[ ! -t 0 ]]; then
-        echo "Paseo has no password and setup is not interactive." >&2
-        echo "Run 'paseo daemon set-password', then rerun this installer." >&2
-        exit 1
-    else
-        echo
-        echo "Set the password required by the public HTTPS endpoint:"
-        "${node_path}" "${paseo_path}" daemon set-password
-        password_configured=true
-    fi
-
+    echo "Paseo password setup is waiting for the user; the Sprite URL must remain private."
 fi
 
 echo
@@ -122,13 +108,15 @@ echo "Health check after publishing: curl --fail ${sprite_url}/api/health"
 
 if [[ "${password_configured}" != true ]]; then
     echo
-    echo "Finish authentication inside the Sprite:"
+    echo "USER ACTION REQUIRED: Open an interactive Sprite terminal and run:"
     echo "  paseo daemon set-password"
-    echo "  codex login"
-    echo "  sprite-env services restart ${SERVICE_NAME}"
+    echo "Then tell the installing agent that setup is done. The agent must not run the password flow."
 fi
 
 echo
 echo "IMPORTANT: Run this OUTSIDE the Sprite, in a terminal where the Sprite CLI is authenticated:"
 echo "  sprite config update --url-auth public -s <sprite-name>"
 echo "The in-Sprite CLI cannot publish its own URL because it does not have your host CLI authentication."
+if [[ "${password_configured}" != true ]]; then
+    echo "DO NOT publish until the user confirms that the Paseo password is configured."
+fi
