@@ -93,7 +93,7 @@ if [[ ! -f "${ACTIVE_AGENT_HELPER}" ]]; then
     exit 127
 fi
 
-if [[ ! -f "${SCHEDULE_SYNC_HELPER}" ]]; then
+if [[ -f "${ALARM_CONFIG}" && ! -f "${SCHEDULE_SYNC_HELPER}" ]]; then
     echo "Schedule sync helper not found at ${SCHEDULE_SYNC_HELPER}" >&2
     exit 127
 fi

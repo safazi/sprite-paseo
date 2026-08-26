@@ -28,11 +28,15 @@ The root installer delegates to `direct/scripts/install.sh`. It:
 - binds Paseo to `0.0.0.0:8080`;
 - registers Paseo as the Sprite HTTP service;
 - keeps the Sprite awake only while an agent is actively working;
-- optionally synchronizes scheduled run times to Cloudflare alarms; and
+- installs dormant support for optional scheduled wake-ups; and
 - prints the host-side command required to make the Sprite URL public.
 
 The installer replaces an existing Sprite service named `paseo`, while
 preserving `~/.paseo`.
+
+Cloudflare is not required for the normal direct-mode installation. Unless
+`~/.paseo/cloudflare-alarm.json` exists, the service does not start the schedule
+synchronizer or send schedule data anywhere.
 
 Override the tested versions when needed:
 
@@ -116,6 +120,10 @@ The registered HTTP service remains available for later wake-on-request.
 
 ## Wake for scheduled tasks with Cloudflare alarms
 
+This is an opt-in extension for users who want Paseo schedules to run after the
+Sprite has shut down. Skip this entire section when scheduled wake-ups are not
+needed; ordinary interactive and unattended agent turns do not require it.
+
 Direct mode can optionally deploy the Worker in [`direct/cloudflare/`](direct/cloudflare/). The Sprite helper watches
 Paseo's schedule files and sends only active schedule IDs and next-run timestamps to a Durable Object. It does not send
 schedule prompts, workspaces, agent configuration, Paseo credentials, or Codex credentials.
@@ -154,8 +162,9 @@ Enter the deployed Worker URL at the second prompt, then enter the same token. T
 managed `paseo` service and verify synchronization without reading the token. Do not put Cloudflare API credentials in the
 Sprite. The Sprite stores only the Worker URL and shared token in `~/.paseo/cloudflare-alarm.json` with mode `0600`.
 
-To disable scheduled waking, remove `~/.paseo/cloudflare-alarm.json` and restart the managed Paseo service. Deleting the
-Worker is a separate, host-side Cloudflare operation.
+To disable scheduled waking, remove `~/.paseo/cloudflare-alarm.json` and restart
+the managed Paseo service. The base Paseo setup continues working normally.
+Deleting the Worker is a separate, host-side Cloudflare operation.
 
 The service environment supports:
 

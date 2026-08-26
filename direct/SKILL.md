@@ -32,10 +32,16 @@ The installer performs these operations:
 - disable the Paseo relay and bundled web UI;
 - register Paseo as the Sprite HTTP service on `0.0.0.0:8080`;
 - keep the Sprite alive with a short-expiry task only while an agent is working;
-- install the optional Cloudflare schedule synchronization helper without enabling it; and
+- install dormant support for optional scheduled wake-ups; and
 - print the host-side command required to make the Sprite URL public.
 
 To override the tested versions only when the user requests specific versions, set `PASEO_VERSION` and `CODEX_VERSION` for the installer invocation.
+
+Cloudflare is not part of the base installation. Do not initiate Wrangler login,
+deploy a Worker, request a sync token, or configure schedule synchronization
+unless the user explicitly wants Paseo schedules to wake a sleeping Sprite. In
+base mode, `~/.paseo/cloudflare-alarm.json` remains absent and the wrapper does
+not start the schedule synchronizer.
 
 ## User password checkpoint
 
@@ -81,8 +87,10 @@ For Codex, verify that `~/.codex/config.toml` contains top-level `sandbox_mode =
 
 ## Optional Cloudflare scheduled wake-up
 
-Use this only when the user asks for scheduled tasks to wake an idle Sprite. Cloudflare deployment and authentication must
-run from a clone on the user's computer, never from inside the Sprite.
+Use this only after the user explicitly opts into scheduled wake-ups. If they do
+not need schedules to work while the Sprite is asleep, skip this section
+entirely. Cloudflare deployment and authentication must run from a clone on the
+user's computer, never from inside the Sprite.
 
 1. Ask the user to run `bun install` and `bunx wrangler login` from `<skill-directory>/cloudflare` on their computer. Stop
    and wait for them to confirm. Do not operate the OAuth prompt or ask for Cloudflare credentials.

@@ -123,7 +123,3 @@ echo "The in-Sprite CLI cannot publish its own URL because it does not have your
 if [[ "${password_configured}" != true ]]; then
     echo "DO NOT publish until the user confirms that the Paseo password is configured."
 fi
-
-echo
-echo "Optional scheduled wake-up: deploy direct/cloudflare from an authenticated host terminal."
-echo "The user must complete both Wrangler login/secret entry and '${INSTALL_DIR}/configure-cloudflare-alarm' interactively."
