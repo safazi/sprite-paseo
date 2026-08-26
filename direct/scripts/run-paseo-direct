@@ -6,14 +6,19 @@ readonly NODE_BIN="${PASEO_NODE_BIN:-$(command -v node || true)}"
 readonly PASEO_CLI="${PASEO_CLI_BIN:-$(command -v paseo 2>/dev/null || true)}"
 readonly PASEO_HOME_DIR="${PASEO_HOME:-/home/sprite/.paseo}"
 readonly ACTIVE_AGENT_HELPER="${PASEO_ACTIVE_AGENT_HELPER:-/home/sprite/bin/count-active-agents.mjs}"
+readonly SCHEDULE_SYNC_HELPER="${PASEO_SCHEDULE_SYNC_HELPER:-/home/sprite/bin/sync-paseo-schedules.mjs}"
+readonly ALARM_CONFIG="${PASEO_ALARM_CONFIG:-/home/sprite/.paseo/cloudflare-alarm.json}"
 readonly SPRITE_SOCKET="/.sprite/api.sock"
 readonly TASK_NAME="${PASEO_TASK_NAME:-paseo-active-agents}"
 readonly TASK_URL="http://sprite/v1/tasks/${TASK_NAME}"
+readonly SCHEDULE_TASK_NAME="${PASEO_SCHEDULE_TASK_NAME:-paseo-schedule-wake}"
+readonly SCHEDULE_TASK_URL="http://sprite/v1/tasks/${SCHEDULE_TASK_NAME}"
 readonly TASK_EXPIRE="${PASEO_TASK_EXPIRE:-5m}"
 readonly POLL_SECONDS="${PASEO_POLL_SECONDS:-5}"
 readonly REFRESH_SECONDS="${PASEO_TASK_REFRESH_SECONDS:-60}"
 
 daemon_pid=""
+schedule_sync_pid=""
 task_present=false
 last_refresh=0
 
@@ -46,11 +51,24 @@ stop_daemon() {
     fi
 }
 
+stop_schedule_sync() {
+    if [[ -n "${schedule_sync_pid}" ]]; then
+        kill -TERM "${schedule_sync_pid}" 2>/dev/null || true
+        wait "${schedule_sync_pid}" 2>/dev/null || true
+    fi
+    curl \
+        --silent \
+        --unix-socket "${SPRITE_SOCKET}" \
+        --request DELETE \
+        "${SCHEDULE_TASK_URL}" >/dev/null 2>&1 || true
+}
+
 cleanup() {
     local status=$?
 
     trap - EXIT INT TERM HUP
     delete_task
+    stop_schedule_sync
     stop_daemon
     exit "${status}"
 }
@@ -75,6 +93,11 @@ if [[ ! -f "${ACTIVE_AGENT_HELPER}" ]]; then
     exit 127
 fi
 
+if [[ ! -f "${SCHEDULE_SYNC_HELPER}" ]]; then
+    echo "Schedule sync helper not found at ${SCHEDULE_SYNC_HELPER}" >&2
+    exit 127
+fi
+
 # Clear a stale hold from an unclean prior service exit. Active work below
 # recreates it within one poll interval.
 delete_task
@@ -84,7 +107,18 @@ delete_task
     --listen 0.0.0.0:8080 &
 daemon_pid=$!
 
+if [[ -f "${ALARM_CONFIG}" ]]; then
+    "${NODE_BIN}" "${SCHEDULE_SYNC_HELPER}" "${ALARM_CONFIG}" &
+    schedule_sync_pid=$!
+    echo "Cloudflare alarm schedule synchronization enabled."
+fi
+
 while kill -0 "${daemon_pid}" 2>/dev/null; do
+    if [[ -n "${schedule_sync_pid}" ]] && ! kill -0 "${schedule_sync_pid}" 2>/dev/null; then
+        wait "${schedule_sync_pid}" 2>/dev/null || true
+        echo "Warning: Cloudflare alarm schedule synchronization stopped; restart Paseo after fixing its configuration." >&2
+        schedule_sync_pid=""
+    fi
     if active_count=$("${NODE_BIN}" "${ACTIVE_AGENT_HELPER}" "${PASEO_HOME_DIR}/agents"); then
         now=$(date +%s)
 

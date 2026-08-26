@@ -27,7 +27,8 @@ The root installer delegates to `direct/scripts/install.sh`. It:
 - disables the Paseo relay and bundled web UI;
 - binds Paseo to `0.0.0.0:8080`;
 - registers Paseo as the Sprite HTTP service;
-- keeps the Sprite awake only while an agent is actively working; and
+- keeps the Sprite awake only while an agent is actively working;
+- optionally synchronizes scheduled run times to Cloudflare alarms; and
 - prints the host-side command required to make the Sprite URL public.
 
 The installer replaces an existing Sprite service named `paseo`, while
@@ -113,6 +114,49 @@ This keeps unattended work alive when Paseo clients disconnect. The five-minute
 task expiry prevents a crashed wrapper from keeping the Sprite awake forever.
 The registered HTTP service remains available for later wake-on-request.
 
+## Wake for scheduled tasks with Cloudflare alarms
+
+Direct mode can optionally deploy the Worker in [`direct/cloudflare/`](direct/cloudflare/). The Sprite helper watches
+Paseo's schedule files and sends only active schedule IDs and next-run timestamps to a Durable Object. It does not send
+schedule prompts, workspaces, agent configuration, Paseo credentials, or Codex credentials.
+
+The Durable Object wakes the Sprite through its public `/api/health` endpoint one minute before the next run, nudges it
+again five seconds before the run, and uses bounded retries through two minutes after the due time. Once awake, the
+Sprite creates a three-minute local task so it cannot become idle again before Paseo starts the scheduled agent. Paseo's
+normal active-agent hold takes over after the run starts.
+
+This integration is event-driven: after its initial snapshot, the Sprite helper sends a request only when Paseo changes a
+schedule file. It does not keep the Sprite awake with a heartbeat.
+
+### Authentication checkpoints
+
+Cloudflare setup must run from a clone on your computer, not from inside the Sprite. First install dependencies and log in:
+
+```bash
+cd direct/cloudflare
+bun install
+bunx wrangler login
+```
+
+Tell the installing agent when Wrangler login is complete. The agent may verify `bunx wrangler whoami`, deploy with
+`bun run deploy`, and give you the resulting Worker URL. You must then create a unique shared token of at least 32
+characters and enter it yourself in both interactive prompts:
+
+```bash
+# On your computer, from direct/cloudflare:
+bunx wrangler secret put PASEO_SYNC_TOKEN
+
+# In an interactive terminal inside the Sprite:
+/home/sprite/bin/configure-cloudflare-alarm
+```
+
+Enter the deployed Worker URL at the second prompt, then enter the same token. Tell the agent `done`; it can restart the
+managed `paseo` service and verify synchronization without reading the token. Do not put Cloudflare API credentials in the
+Sprite. The Sprite stores only the Worker URL and shared token in `~/.paseo/cloudflare-alarm.json` with mode `0600`.
+
+To disable scheduled waking, remove `~/.paseo/cloudflare-alarm.json` and restart the managed Paseo service. Deleting the
+Worker is a separate, host-side Cloudflare operation.
+
 The service environment supports:
 
 | Variable | Default | Meaning |
@@ -121,6 +165,7 @@ The service environment supports:
 | `PASEO_TASK_REFRESH_SECONDS` | `60` | Task heartbeat interval |
 | `PASEO_TASK_EXPIRE` | `5m` | Safety expiry after the last heartbeat |
 | `PASEO_TASK_NAME` | `paseo-active-agents` | Sprite task name |
+| `PASEO_SCHEDULE_TASK_NAME` | `paseo-schedule-wake` | Short hold around an imminent scheduled run |
 
 ## Security
 
@@ -130,5 +175,6 @@ UI is disabled; `/api/health` remains intentionally unauthenticated.
 
 - Use a strong, unique Paseo password.
 - Keep `~/.paseo` private; it contains authentication and agent state.
+- Use a unique Cloudflare sync token and never commit `cloudflare-alarm.json` or `.dev.vars`.
 - Do not enable the Paseo relay in direct mode.
 - Do not expose another service on the Sprite HTTP port.

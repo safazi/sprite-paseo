@@ -1,0 +1,27 @@
+{
+    "name": "paseo-schedule-waker",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "cf-typegen": "wrangler types",
+        "check": "bun run typecheck && bun run test && bun run deploy:dry-run",
+        "deploy": "wrangler deploy",
+        "deploy:dry-run": "wrangler deploy --dry-run",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "hono": "4.13.4",
+        "zod": "4.4.3"
+    },
+    "devDependencies": {
+        "@cloudflare/vitest-plugin": "1.1.0",
+        "prettier": "3.9.6",
+        "typescript": "7.0.2",
+        "vitest": "4.1.11",
+        "wrangler": "4.126.0"
+    }
+}

@@ -61,6 +61,9 @@ install -m 755 "${SCRIPT_DIR}/run-paseo-direct" "${INSTALL_DIR}/run-paseo-direct
 install -m 755 "${SCRIPT_DIR}/count-active-agents.mjs" "${INSTALL_DIR}/count-active-agents.mjs"
 install -m 755 "${SCRIPT_DIR}/configure-paseo.mjs" "${INSTALL_DIR}/configure-paseo.mjs"
 install -m 755 "${SCRIPT_DIR}/configure-codex.mjs" "${INSTALL_DIR}/configure-codex.mjs"
+install -m 755 "${SCRIPT_DIR}/sync-paseo-schedules.mjs" "${INSTALL_DIR}/sync-paseo-schedules.mjs"
+install -m 755 "${SCRIPT_DIR}/write-cloudflare-alarm-config.mjs" "${INSTALL_DIR}/write-cloudflare-alarm-config.mjs"
+install -m 755 "${SCRIPT_DIR}/configure-cloudflare-alarm" "${INSTALL_DIR}/configure-cloudflare-alarm"
 install -d -m 700 "${PASEO_HOME_DIR}"
 
 "${node_path}" "${INSTALL_DIR}/configure-paseo.mjs" \
@@ -92,7 +95,7 @@ fi
 
 sprite-env services create "${SERVICE_NAME}" \
     --cmd "${INSTALL_DIR}/run-paseo-direct" \
-    --env "PASEO_NODE_BIN=${node_path},PASEO_CLI_BIN=${paseo_path},PASEO_HOME=${PASEO_HOME_DIR},PASEO_ACTIVE_AGENT_HELPER=${INSTALL_DIR}/count-active-agents.mjs" \
+    --env "PASEO_NODE_BIN=${node_path},PASEO_CLI_BIN=${paseo_path},PASEO_HOME=${PASEO_HOME_DIR},PASEO_ACTIVE_AGENT_HELPER=${INSTALL_DIR}/count-active-agents.mjs,PASEO_SCHEDULE_SYNC_HELPER=${INSTALL_DIR}/sync-paseo-schedules.mjs,PASEO_ALARM_CONFIG=${PASEO_HOME_DIR}/cloudflare-alarm.json" \
     --dir /home/sprite \
     --http-port 8080 \
     --duration 10s
@@ -120,3 +123,7 @@ echo "The in-Sprite CLI cannot publish its own URL because it does not have your
 if [[ "${password_configured}" != true ]]; then
     echo "DO NOT publish until the user confirms that the Paseo password is configured."
 fi
+
+echo
+echo "Optional scheduled wake-up: deploy direct/cloudflare from an authenticated host terminal."
+echo "The user must complete both Wrangler login/secret entry and '${INSTALL_DIR}/configure-cloudflare-alarm' interactively."

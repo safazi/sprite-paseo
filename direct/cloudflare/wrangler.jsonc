@@ -1,0 +1,23 @@
+{
+    "$schema": "./node_modules/wrangler/config-schema.json",
+    "name": "paseo-schedule-waker",
+    "main": "src/index.ts",
+    "compatibility_date": "2026-08-25",
+    "durable_objects": {
+        "bindings": [
+            {
+                "name": "PASEO_SCHEDULERS",
+                "class_name": "PaseoScheduler",
+            },
+        ],
+    },
+    "exports": {
+        "PaseoScheduler": {
+            "type": "durable-object",
+            "storage": "sqlite",
+        },
+    },
+    "observability": {
+        "enabled": true,
+    },
+}

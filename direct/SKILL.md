@@ -1,6 +1,6 @@
 ---
 name: direct
-description: Set up, configure, verify, or repair a Sprite that runs Paseo and Codex together in direct mode, with Paseo exposed through the Sprite HTTPS service and active agent turns keeping the Sprite awake. Use when a user wants direct Paseo access to their own Sprite, wants to install Paseo on a Sprite without the relay, or needs to troubleshoot this repository's direct-mode setup.
+description: Set up, configure, verify, or repair a Sprite that runs Paseo and Codex together in direct mode, with Paseo exposed through the Sprite HTTPS service, active agent turns keeping the Sprite awake, and optional Cloudflare alarms waking it for scheduled tasks. Use when a user wants direct Paseo access to their own Sprite, wants to install Paseo on a Sprite without the relay, needs scheduled Sprite wake-ups, or needs to troubleshoot this repository's direct-mode setup.
 ---
 
 # Set Up a Paseo Sprite
@@ -31,7 +31,8 @@ The installer performs these operations:
 - enable Codex's interactive user-question tool globally;
 - disable the Paseo relay and bundled web UI;
 - register Paseo as the Sprite HTTP service on `0.0.0.0:8080`;
-- keep the Sprite alive with a short-expiry task only while an agent is working; and
+- keep the Sprite alive with a short-expiry task only while an agent is working;
+- install the optional Cloudflare schedule synchronization helper without enabling it; and
 - print the host-side command required to make the Sprite URL public.
 
 To override the tested versions only when the user requests specific versions, set `PASEO_VERSION` and `CODEX_VERSION` for the installer invocation.
@@ -78,8 +79,33 @@ If verification fails, inspect the Paseo service logs and configuration metadata
 
 For Codex, verify that `~/.codex/config.toml` contains top-level `sandbox_mode = "danger-full-access"` and that the installed Paseo Codex provider reports `full-access` as its default mode. Paseo 0.4.0 otherwise sends `workspace-write` with its default mode and overrides Codex's file-level sandbox setting.
 
+## Optional Cloudflare scheduled wake-up
+
+Use this only when the user asks for scheduled tasks to wake an idle Sprite. Cloudflare deployment and authentication must
+run from a clone on the user's computer, never from inside the Sprite.
+
+1. Ask the user to run `bun install` and `bunx wrangler login` from `<skill-directory>/cloudflare` on their computer. Stop
+   and wait for them to confirm. Do not operate the OAuth prompt or ask for Cloudflare credentials.
+2. After confirmation, verify `bunx wrangler whoami`, run `bun run deploy`, and record the HTTPS Worker URL.
+3. Ask the user to run `bunx wrangler secret put PASEO_SYNC_TOKEN` from the same host directory and enter a unique token
+   of at least 32 characters. The agent must not generate, read, print, pipe, or retrieve the token. Wait for confirmation.
+4. Ask the user to open an interactive terminal inside the Sprite and run
+   `/home/sprite/bin/configure-cloudflare-alarm`. They must enter the Worker URL and the same token. The agent must not
+   operate this prompt. Wait for a reply such as `done`.
+5. Restart the managed service with `sprite-env services restart paseo`. Inspect service logs for
+   `Synchronized Paseo schedules with Cloudflare alarms`; never print the alarm config file.
+
+The Worker receives only the Sprite ID, its canonical `https://<id>.sprites.app` origin, schedule IDs, and next-run
+timestamps. It stores one Durable Object per Sprite and wakes only that canonical origin's `/api/health` endpoint. It never
+receives schedule prompts or Paseo/Codex credentials. The shared bearer token is the only additional runtime secret; no
+Cloudflare credential belongs inside the Sprite.
+
+For an end-to-end test, create a disposable Paseo schedule far enough in the future to allow the Sprite to sleep, confirm
+the sync log and `paseo-schedule-wake` task around the due time, verify the scheduled agent starts, then delete the test
+schedule. Do not leave a surprise scheduled agent behind.
+
 ## Preserve lifecycle behavior
 
-Keep `scripts/run-paseo-direct` and `scripts/count-active-agents.mjs` together with the installer. The wrapper refreshes the `paseo-active-agents` Sprite task while a Paseo agent is `initializing` or `running` and does not require attention. It releases the task when work finishes or control returns to the user. The short expiry prevents a crashed wrapper from holding the Sprite awake indefinitely.
+Keep `scripts/run-paseo-direct`, `scripts/count-active-agents.mjs`, and `scripts/sync-paseo-schedules.mjs` together with the installer. The wrapper refreshes the `paseo-active-agents` Sprite task while a Paseo agent is `initializing` or `running` and does not require attention. It releases the task when work finishes or control returns to the user. For an imminent scheduled run, the schedule helper creates a separate three-minute `paseo-schedule-wake` task. Both holds have bounded expiries so a crashed wrapper cannot keep the Sprite awake indefinitely.
 
-Tune this behavior only when requested through the service environment: `PASEO_POLL_SECONDS`, `PASEO_TASK_REFRESH_SECONDS`, `PASEO_TASK_EXPIRE`, and `PASEO_TASK_NAME`.
+Tune this behavior only when requested through the service environment: `PASEO_POLL_SECONDS`, `PASEO_TASK_REFRESH_SECONDS`, `PASEO_TASK_EXPIRE`, `PASEO_TASK_NAME`, and `PASEO_SCHEDULE_TASK_NAME`.

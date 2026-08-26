@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly NODE_BIN="${PASEO_NODE_BIN:-$(command -v node || true)}"
+readonly WRITER="${PASEO_ALARM_CONFIG_WRITER:-/home/sprite/bin/write-cloudflare-alarm-config.mjs}"
+readonly CONFIG_PATH="${PASEO_ALARM_CONFIG:-/home/sprite/.paseo/cloudflare-alarm.json}"
+
+if [[ ! -t 0 || ! -t 1 ]]; then
+    echo "This user-owned setup must run in an interactive Sprite terminal." >&2
+    exit 1
+fi
+if [[ ! -x "${NODE_BIN}" || ! -f "${WRITER}" ]]; then
+    echo "Cloudflare alarm configuration tools are not installed." >&2
+    exit 127
+fi
+
+read -r -p "Cloudflare Worker URL: " worker_url
+read -r -s -p "Shared sync token: " sync_token
+echo
+
+if [[ -z "${worker_url}" || -z "${sync_token}" ]]; then
+    echo "Worker URL and sync token are required." >&2
+    exit 1
+fi
+
+PASEO_ALARM_WORKER_URL="${worker_url}" \
+PASEO_ALARM_SYNC_TOKEN="${sync_token}" \
+    "${NODE_BIN}" "${WRITER}" "${CONFIG_PATH}"
+
+unset worker_url sync_token
+echo "Cloudflare alarm synchronization configured at ${CONFIG_PATH}."
+echo "Tell the installing agent that this step is done; the Paseo service must be restarted."
