@@ -108,9 +108,12 @@ timestamps. It stores one Durable Object per Sprite and wakes only that canonica
 receives schedule prompts or Paseo/Codex credentials. The shared bearer token is the only additional runtime secret; no
 Cloudflare credential belongs inside the Sprite.
 
-For an end-to-end test, create a disposable Paseo schedule far enough in the future to allow the Sprite to sleep, confirm
-the sync log and `paseo-schedule-wake` task around the due time, verify the scheduled agent starts, then delete the test
-schedule. Do not leave a surprise scheduled agent behind.
+For an end-to-end test, ask the user to create a disposable schedule from their
+authenticated Paseo client far enough in the future to allow the Sprite to
+sleep. Do not obtain the Paseo password or use it with the in-Sprite CLI. Confirm
+the sync log and `paseo-schedule-wake` task around the due time, then ask the
+user to delete the test schedule after its agent starts. Do not leave a surprise
+scheduled agent behind.
 
 ## Preserve lifecycle behavior
 
