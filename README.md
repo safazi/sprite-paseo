@@ -22,7 +22,7 @@ The root installer delegates to `direct/scripts/install.sh`. It:
 - installs the tested Paseo and Codex CLI versions;
 - preserves existing Paseo state and authentication;
 - merges the direct-mode Paseo configuration;
-- configures Codex full access as Paseo's default mode without an agent profile;
+- configures Codex full access without command approvals as Paseo's default mode;
 - keeps Codex interactive user questions enabled;
 - disables the Paseo relay and bundled web UI;
 - binds Paseo to `0.0.0.0:8080`;

@@ -27,7 +27,7 @@ The installer performs these operations:
 
 - install the tested Paseo and Codex CLI versions;
 - merge direct-mode settings without deleting existing Paseo state or authentication;
-- make Codex full access the default Paseo mode without requiring an agent profile;
+- make Codex full access without command approvals the default Paseo mode;
 - enable Codex's interactive user-question tool globally;
 - disable the Paseo relay and bundled web UI;
 - register Paseo as the Sprite HTTP service on `0.0.0.0:8080`;
@@ -83,7 +83,7 @@ Allow a few seconds for the first HTTPS request after a cold wake. The `401` pro
 
 If verification fails, inspect the Paseo service logs and configuration metadata without exposing secrets. Restart an existing service with `sprite-env services restart paseo`; do not launch Paseo as an unmanaged background process.
 
-For Codex, verify that `~/.codex/config.toml` contains top-level `sandbox_mode = "danger-full-access"` and that the installed Paseo Codex provider reports `full-access` as its default mode. Paseo 0.4.0 otherwise sends `workspace-write` with its default mode and overrides Codex's file-level sandbox setting.
+For Codex, verify that `~/.codex/config.toml` contains top-level `sandbox_mode = "danger-full-access"` and `approval_policy = "never"`, while `[features] default_mode_request_user_input = true`. Also verify that the installed Paseo Codex provider reports `full-access` as its default mode. Paseo 0.4.0 otherwise sends `workspace-write` with its `auto-review` mode and overrides Codex's file-level sandbox setting. Command approvals and Codex's user-question tool are separate: keep the latter enabled.
 
 ## Optional Cloudflare scheduled wake-up
 

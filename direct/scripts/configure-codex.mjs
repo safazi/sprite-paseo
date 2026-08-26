@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 
 const [configPath, providerManifestPath] = process.argv.slice(2);
 
@@ -66,7 +66,7 @@ try {
 }
 
 codexConfig = setTopLevelValue(codexConfig, "sandbox_mode", '"danger-full-access"');
-codexConfig = setTopLevelValue(codexConfig, "approval_policy", '"on-request"');
+codexConfig = setTopLevelValue(codexConfig, "approval_policy", '"never"');
 codexConfig = setSectionValue(codexConfig, "features", "default_mode_request_user_input", "true");
 
 await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
@@ -90,4 +90,49 @@ const temporaryManifestPath = `${providerManifestPath}.new`;
 await writeFile(temporaryManifestPath, configuredManifest);
 await rename(temporaryManifestPath, providerManifestPath);
 
-console.log("Configured Codex full access as Paseo's default mode; interactive user questions remain enabled.");
+// Paseo 0.4.0's runtime catalog independently promotes auto-review when the
+// installed Codex version supports it. Patch that source of truth as well as
+// the static manifest so new agents consistently default to full access.
+const providerImplementationPath = resolve(
+    dirname(providerManifestPath),
+    "../../server/dist/server/server/agent/providers/codex-app-server-agent.js",
+);
+let providerImplementation = await readFile(providerImplementationPath, "utf8");
+
+const replaceOrVerify = (source, pattern, replacement, verification, label) => {
+    if (pattern.test(source)) {
+        return source.replace(pattern, replacement);
+    }
+    if (!verification.test(source)) {
+        throw new Error(`Could not locate ${label} in ${providerImplementationPath}`);
+    }
+    return source;
+};
+
+providerImplementation = replaceOrVerify(
+    providerImplementation,
+    /const DEFAULT_CODEX_MODE_ID = "[^"]+";/u,
+    'const DEFAULT_CODEX_MODE_ID = "full-access";',
+    /const DEFAULT_CODEX_MODE_ID = "full-access";/u,
+    "the Codex runtime default mode",
+);
+providerImplementation = replaceOrVerify(
+    providerImplementation,
+    /defaultModeId: autoReviewEnabled \? "auto-review" : DEFAULT_CODEX_MODE_ID,/u,
+    "defaultModeId: DEFAULT_CODEX_MODE_ID,",
+    /defaultModeId: DEFAULT_CODEX_MODE_ID,/u,
+    "the Codex catalog default mode",
+);
+providerImplementation = replaceOrVerify(
+    providerImplementation,
+    /async resolveDefaultModeId\(input\) \{\s*return \(await this\.resolveAutoReviewEnabled\(input\.signal\)\)\s*\? "auto-review"\s*: DEFAULT_CODEX_MODE_ID;\s*\}/u,
+    "async resolveDefaultModeId(_input) {\n        return DEFAULT_CODEX_MODE_ID;\n    }",
+    /async resolveDefaultModeId\(_input\) \{\s*return DEFAULT_CODEX_MODE_ID;\s*\}/u,
+    "the Codex runtime mode resolver",
+);
+
+const temporaryProviderImplementationPath = `${providerImplementationPath}.new`;
+await writeFile(temporaryProviderImplementationPath, providerImplementation);
+await rename(temporaryProviderImplementationPath, providerImplementationPath);
+
+console.log("Configured Codex full access without command approvals as Paseo's default mode; interactive user questions remain enabled.");
