@@ -6,8 +6,8 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly INSTALL_DIR="${DIRECT_INSTALL_DIR:-/home/sprite/bin}"
 readonly PASEO_HOME_DIR="${PASEO_HOME:-/home/sprite/.paseo}"
 readonly CODEX_HOME_DIR="${CODEX_HOME:-/home/sprite/.codex}"
-readonly PASEO_VERSION="${PASEO_VERSION:-0.4.0}"
-readonly CODEX_VERSION="${CODEX_VERSION:-0.144.3}"
+readonly PASEO_VERSION="${PASEO_VERSION:-0.9.2}"
+readonly CODEX_VERSION="${CODEX_VERSION:-0.157.1}"
 readonly SERVICE_NAME="${PASEO_SERVICE_NAME:-paseo}"
 
 if [[ ! -S /.sprite/api.sock ]]; then

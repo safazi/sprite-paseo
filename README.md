@@ -17,7 +17,8 @@ cd sprite-paseo
 ./install.sh
 ```
 
-The root installer delegates to `direct/scripts/install.sh`. It:
+The root installer delegates to `direct/scripts/install.sh` and pins Paseo `0.9.2`
+and Codex CLI `0.157.1`. It:
 
 - installs the tested Paseo and Codex CLI versions;
 - preserves existing Paseo state and authentication;
@@ -25,6 +26,7 @@ The root installer delegates to `direct/scripts/install.sh`. It:
 - configures Codex full access as Paseo's default mode without an agent profile;
 - keeps Codex interactive user questions enabled;
 - disables the Paseo relay and bundled web UI;
+- enables realtime voice, preserving existing speech provider settings;
 - binds Paseo to `0.0.0.0:8080`;
 - registers Paseo as the Sprite HTTP service;
 - keeps the Sprite awake only while an agent is actively working; and
@@ -36,7 +38,7 @@ preserving `~/.paseo`.
 Override the tested versions when needed:
 
 ```bash
-PASEO_VERSION=0.4.0 CODEX_VERSION=0.144.3 ./install.sh
+PASEO_VERSION=0.9.2 CODEX_VERSION=0.157.1 ./install.sh
 ```
 
 ## Use as a Codex skill
@@ -89,10 +91,20 @@ Use the Paseo password configured during installation.
 Opening this connection wakes the Sprite. A warm wake resumes Paseo in memory;
 a cold wake restarts the registered service from the persistent filesystem.
 
+## Realtime voice
+
+Realtime voice is enabled during installation, including when upgrading an existing
+configuration that had voice disabled. Existing speech provider settings are preserved;
+new installations use local speech recognition and synthesis. Paseo downloads missing
+Parakeet and Kokoro models into `~/.paseo/models/local-speech` on first startup, so
+allow the downloads to finish before starting a voice session in the Paseo app.
+Dictation remains disabled by default. See the [Paseo voice docs](https://paseo.sh/docs/voice.md).
+
 ## Verify
 
 ```bash
 curl --fail https://<sprite-host>.sprites.app/api/health
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/)" = 404
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/)" = 404
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' https://<sprite-host>.sprites.app/api/config)" = 401
 sprite-env services get paseo
@@ -103,6 +115,10 @@ The first HTTPS request may take a few seconds after a cold wake. Service logs
 are available at `/.sprite/logs/services/paseo.log`.
 
 ## Lifecycle behavior
+
+The wrapper uses `paseo daemon run --home ...` with the listen address persisted
+in `config.json`. Paseo 0.9.2 removed the old `start --foreground --listen` launch
+flags; using them causes the service to exit after an upgrade or cold wake.
 
 The service checks Paseo's persisted agent state every five seconds. While an
 agent is `initializing` or `running` and does not require user attention, it

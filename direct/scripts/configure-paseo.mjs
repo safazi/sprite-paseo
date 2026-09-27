@@ -40,7 +40,7 @@ if (Array.isArray(config.daemon.agentProfiles)) {
 config.features ??= {};
 config.features.webUi = { ...(config.features.webUi ?? {}), enabled: false };
 config.features.dictation ??= { enabled: false };
-config.features.voiceMode ??= { enabled: false };
+config.features.voiceMode = { ...(config.features.voiceMode ?? {}), enabled: true };
 
 await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
 const temporaryPath = `${configPath}.new`;

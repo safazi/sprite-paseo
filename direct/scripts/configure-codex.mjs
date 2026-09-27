@@ -76,7 +76,7 @@ await rename(temporaryConfigPath, configPath);
 await chmod(configPath, 0o600);
 
 const providerManifest = await readFile(providerManifestPath, "utf8");
-// Paseo 0.4.0 otherwise resolves every new Codex agent to auto-review, which
+// Paseo otherwise resolves every new Codex agent to auto-review, which
 // sends workspace-write on each app-server turn and overrides config.toml.
 const codexProviderPattern = /(id:\s*"codex",[\s\S]*?defaultModeId:\s*)"[^"]+"/u;
 const match = providerManifest.match(codexProviderPattern);
