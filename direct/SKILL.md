@@ -23,13 +23,14 @@ Resolve this skill's directory from the loaded `SKILL.md`, then run:
 <skill-directory>/scripts/install.sh
 ```
 
-The installer performs these operations:
+The installer pins Paseo `0.9.2` and Codex CLI `0.157.1`. It performs these operations:
 
 - install the tested Paseo and Codex CLI versions;
 - merge direct-mode settings without deleting existing Paseo state or authentication;
 - make Codex full access the default Paseo mode without requiring an agent profile;
 - enable Codex's interactive user-question tool globally;
 - disable the Paseo relay and bundled web UI;
+- enable realtime voice while preserving existing speech provider settings;
 - register Paseo as the Sprite HTTP service on `0.0.0.0:8080`;
 - keep the Sprite alive with a short-expiry task only while an agent is working; and
 - print the host-side command required to make the Sprite URL public.
@@ -76,9 +77,13 @@ Allow a few seconds for the first HTTPS request after a cold wake. The `401` pro
 
 If verification fails, inspect the Paseo service logs and configuration metadata without exposing secrets. Restart an existing service with `sprite-env services restart paseo`; do not launch Paseo as an unmanaged background process.
 
-For Codex, verify that `~/.codex/config.toml` contains top-level `sandbox_mode = "danger-full-access"` and that the installed Paseo Codex provider reports `full-access` as its default mode. Paseo 0.4.0 otherwise sends `workspace-write` with its default mode and overrides Codex's file-level sandbox setting.
+For Codex, verify that `~/.codex/config.toml` contains top-level `sandbox_mode = "danger-full-access"` and that the installed Paseo Codex provider reports `full-access` as its default mode. The installer patches Paseo's Codex default mode so it does not override the file-level sandbox setting with `workspace-write`.
 
 ## Preserve lifecycle behavior
+
+Use `paseo daemon run --home "${PASEO_HOME_DIR}"` in the wrapper. The listen address belongs in `config.json`; Paseo 0.9.2 rejects the legacy `start --foreground --listen` flags. Keep the bundled web UI disabled.
+
+Realtime voice is enabled by the installer. Missing local Parakeet and Kokoro models download on first startup; verify model downloads complete and speech providers reconcile successfully in the service logs before reporting voice ready. Existing speech provider settings are preserved; dictation remains disabled by default.
 
 Keep `scripts/run-paseo-direct` and `scripts/count-active-agents.mjs` together with the installer. The wrapper refreshes the `paseo-active-agents` Sprite task while a Paseo agent is `initializing` or `running` and does not require attention. It releases the task when work finishes or control returns to the user. The short expiry prevents a crashed wrapper from holding the Sprite awake indefinitely.
 

@@ -79,9 +79,8 @@ fi
 # recreates it within one poll interval.
 delete_task
 
-"${NODE_BIN}" "${PASEO_CLI}" start \
-    --foreground \
-    --listen 0.0.0.0:8080 &
+"${NODE_BIN}" "${PASEO_CLI}" daemon run \
+    --home "${PASEO_HOME_DIR}" &
 daemon_pid=$!
 
 while kill -0 "${daemon_pid}" 2>/dev/null; do
